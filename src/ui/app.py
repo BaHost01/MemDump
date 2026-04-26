@@ -66,14 +66,29 @@ class MemDumpApp(ctk.CTk):
     def _setup_dumper_tab(self):
         self.tab_dumper.grid_columnconfigure(0, weight=1)
 
-        self.dump_mod_label = ctk.CTkLabel(self.tab_dumper, text="Module Name (e.g., client.dll):")
-        self.dump_mod_label.pack(pady=(20, 0))
+        self.mod_frame = ctk.CTkFrame(self.tab_dumper)
+        self.mod_frame.pack(pady=20, padx=50, fill="x")
+        self.mod_frame.grid_columnconfigure(1, weight=1)
 
-        self.dump_mod_entry = ctk.CTkEntry(self.tab_dumper, placeholder_text="Enter module name...")
-        self.dump_mod_entry.pack(pady=10, padx=50, fill="x")
+        self.dump_mod_label = ctk.CTkLabel(self.mod_frame, text="Select Module:")
+        self.dump_mod_label.grid(row=0, column=0, padx=10, pady=10)
 
-        self.dump_btn = ctk.CTkButton(self.tab_dumper, text="Dump Module", command=self.dump_module)
+        self.mod_combo = ctk.CTkComboBox(self.mod_frame, values=[], command=self.on_module_select)
+        self.mod_combo.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+        self.mod_combo.bind("<KeyRelease>", self.filter_module_list)
+
+        self.refresh_mod_btn = ctk.CTkButton(self.mod_frame, text="↻", width=30, command=self.refresh_modules)
+        self.refresh_mod_btn.grid(row=0, column=2, padx=10, pady=10)
+
+        self.info_box = ctk.CTkTextbox(self.tab_dumper, height=100)
+        self.info_box.pack(pady=10, padx=50, fill="x")
+        self.info_box.insert("0.0", "Module Info:\nBase Address: -\nImage Size: -")
+        self.info_box.configure(state="disabled")
+
+        self.dump_btn = ctk.CTkButton(self.tab_dumper, text="Dump Selected Module", command=self.dump_module, fg_color="blue", hover_color="darkblue")
         self.dump_btn.pack(pady=20)
+
+        self.all_modules = []
 
     def _setup_injector_tab(self):
         self.tab_injector.grid_columnconfigure(0, weight=1)
@@ -150,18 +165,53 @@ class MemDumpApp(ctk.CTk):
             pid = int(value.split("(")[-1].strip(")"))
             self.selected_process = pid
             self.log(f"Attached to target PID: {pid}", "SUCCESS")
+            # Automatically refresh modules for the dumper tab
+            self.refresh_modules()
         except:
             self.selected_process = None
             self.log("Invalid process selection.", "WARNING")
+
+    def refresh_modules(self):
+        if not self.selected_process:
+            return
+
+        self.log("Fetching modules for selected process...")
+        def _task():
+            if self.memory_manager.attach(self.selected_process):
+                self.all_modules = self.memory_manager.get_modules()
+                mod_strings = [m['name'] for m in self.all_modules]
+                self.mod_combo.configure(values=mod_strings)
+                if mod_strings:
+                    self.mod_combo.set(mod_strings[0])
+                    self.on_module_select(mod_strings[0])
+                self.log(f"Loaded {len(self.all_modules)} modules.", "SUCCESS")
+            else:
+                self.log("Failed to attach for module enumeration.", "ERROR")
+
+        threading.Thread(target=_task).start()
+
+    def filter_module_list(self, event):
+        search_query = self.mod_combo.get().lower()
+        filtered = [m['name'] for m in self.all_modules if search_query in m['name'].lower()]
+        self.mod_combo.configure(values=filtered)
+
+    def on_module_select(self, value):
+        module = next((m for m in self.all_modules if m['name'] == value), None)
+        if module:
+            self.info_box.configure(state="normal")
+            self.info_box.delete("0.0", "end")
+            info = f"Module Info:\nBase Address: {module['base']}\nImage Size: {module['size']}"
+            self.info_box.insert("0.0", info)
+            self.info_box.configure(state="disabled")
 
     def dump_module(self):
         if not self.selected_process:
             messagebox.showwarning("Warning", "Please select a process first.")
             return
 
-        module_name = self.dump_mod_entry.get()
+        module_name = self.mod_combo.get()
         if not module_name:
-            messagebox.showwarning("Warning", "Please enter a module name.")
+            messagebox.showwarning("Warning", "Please select a module to dump.")
             return
 
         save_path = filedialog.asksaveasfilename(defaultextension=".bin", initialfile=f"dump_{module_name}")

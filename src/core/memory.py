@@ -40,6 +40,24 @@ class MemoryManager:
             print(f"Error attaching to process {process_id}: {e}")
             return False
 
+    def get_modules(self):
+        """Get all modules for the currently attached process."""
+        if not self.pm:
+            return []
+        
+        modules = []
+        try:
+            for module in self.pm.list_modules():
+                modules.append({
+                    'name': module.name,
+                    'base': hex(module.lpBaseOfDll),
+                    'size': hex(module.SizeOfImage)
+                })
+        except Exception as e:
+            print(f"Error listing modules: {e}")
+            
+        return sorted(modules, key=lambda x: x['name'].lower())
+
     def dump_module(self, module_name, output_path):
         """Dump a specific module from the attached process."""
         if not self.pm:
