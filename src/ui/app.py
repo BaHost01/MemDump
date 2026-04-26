@@ -120,7 +120,11 @@ class MemDumpApp(ctk.CTk):
         self.inject_btn = ctk.CTkButton(self.tab_injector, text="Inject DLL", command=self.inject_dll, fg_color="green", hover_color="darkgreen")
         self.inject_btn.pack(pady=20)
 
+        self.verify_btn = ctk.CTkButton(self.tab_injector, text="Verify Last Injection", command=self.verify_injection)
+        self.verify_btn.pack(pady=5)
+
         self.dll_path = None
+        self.last_injection_addr = None
 
     # --- Actions ---
 
@@ -274,12 +278,38 @@ class MemDumpApp(ctk.CTk):
 
             if success:
                 self.log(msg, "SUCCESS")
+                # Extract address from msg "Stealthily injected at 0x..."
+                try:
+                    self.last_injection_addr = int(msg.split("at ")[-1], 16)
+                except:
+                    pass
                 messagebox.showinfo("Injection Result", msg)
             else:
                 self.log(msg, "ERROR")
                 messagebox.showerror("Injection Error", msg)
 
         threading.Thread(target=_task).start()
+
+    def verify_injection(self):
+        if not self.selected_process or not self.last_injection_addr:
+            messagebox.showwarning("Warning", "No recent injection to verify.")
+            return
+
+        self.log(f"Verifying memory at {hex(self.last_injection_addr)}...")
+        if self.memory_manager.attach(self.selected_process):
+            try:
+                # Read the first 2 bytes (MZ header)
+                data = self.memory_manager.pm.read_bytes(self.last_injection_addr, 2)
+                if data == b'MZ':
+                    self.log(f"Verification SUCCESS: Found 'MZ' header at {hex(self.last_injection_addr)}", "SUCCESS")
+                    messagebox.showinfo("Verification", f"Success! Found 'MZ' header at {hex(self.last_injection_addr)}")
+                else:
+                    self.log(f"Verification FAILED: Found {data} instead of 'MZ'", "ERROR")
+                    messagebox.showerror("Verification", "Failed: Header mismatch.")
+            except Exception as e:
+                self.log(f"Verification error: {e}", "ERROR")
+        else:
+            self.log("Failed to attach for verification.", "ERROR")
 
 if __name__ == "__main__":
     app = MemDumpApp()

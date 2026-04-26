@@ -83,9 +83,8 @@ class ManualMapInjector:
             # 5. Base Relocations
             self._apply_relocations(pe, remote_base)
 
-            # 6. Resolve Imports (Loader Stub implementation would go here)
-            # Implementation of a full loader stub is beyond a simple script, 
-            # but we can log progress.
+            # 6. Resolve Imports
+            self._resolve_imports(pe, remote_base)
             
             # 7. Execution
             entry_point = remote_base + pe.OPTIONAL_HEADER.AddressOfEntryPoint
@@ -113,6 +112,36 @@ class ManualMapInjector:
 
         except Exception as e:
             return False, f"Injection failed: {str(e)}"
+
+    def _resolve_imports(self, pe, remote_base):
+        if not hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
+            return
+
+        for entry in pe.DIRECTORY_ENTRY_IMPORT:
+            dll_name = entry.dll.decode('utf-8')
+            
+            # Ensure the dependency DLL is loaded in the target process
+            # In a full injector, we'd use LoadLibrary in the target if not found
+            # For this utility, we assume common DLLs (user32, kernel32) are present
+            target_module = pymem.process.module_from_name(self.pm.process_handle, dll_name)
+            if not target_module:
+                continue
+
+            for imp in entry.imports:
+                if imp.name:
+                    func_name = imp.name.decode('utf-8')
+                    func_addr = pymem.process.get_proc_address(self.pm.process_handle, dll_name, func_name)
+                else:
+                    # Import by ordinal
+                    func_addr = pymem.process.get_proc_address(self.pm.process_handle, dll_name, imp.ordinal)
+                
+                if func_addr:
+                    # Write the address to the IAT
+                    iat_address = remote_base + imp.address - pe.OPTIONAL_HEADER.ImageBase
+                    if pe.FILE_HEADER.Machine == 0x8664:
+                        self.pm.write_longlong(remote_base + (imp.address - pe.OPTIONAL_HEADER.ImageBase), func_addr)
+                    else:
+                        self.pm.write_int(remote_base + (imp.address - pe.OPTIONAL_HEADER.ImageBase), func_addr)
 
     def _apply_relocations(self, pe, remote_base):
         delta = remote_base - pe.OPTIONAL_HEADER.ImageBase
