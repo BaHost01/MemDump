@@ -20,6 +20,32 @@ class ManualMapInjector:
             self.pm = None
             self.error = str(e)
 
+    def get_proc_address(self, module_name, func_name):
+        """Get the address of a function in the target process."""
+        # 1. Get local handle and address
+        local_handle = pymem.ressources.kernel32.GetModuleHandleW(module_name)
+        if not local_handle:
+            # Try to load it locally if not present
+            local_handle = pymem.ressources.kernel32.LoadLibraryW(module_name)
+        
+        if not local_handle:
+            return 0
+
+        func_bytes = func_name.encode('utf-8') if isinstance(func_name, str) else func_name
+        local_func_addr = pymem.ressources.kernel32.GetProcAddress(local_handle, func_bytes)
+        if not local_func_addr:
+            return 0
+
+        # 2. Calculate offset
+        offset = local_func_addr - local_handle
+
+        # 3. Get remote module base
+        remote_module = pymem.process.module_from_name(self.pm.process_handle, module_name)
+        if not remote_module:
+            return 0
+
+        return remote_module.lpBaseOfDll + offset
+
     def inject_load_library(self, dll_path):
         """Standard injection using LoadLibraryA."""
         if not self.pm:
@@ -33,9 +59,10 @@ class ManualMapInjector:
             # 2. Write the path string
             self.pm.write_bytes(remote_path, path_bytes, len(path_bytes))
             
-            # 3. Get address of LoadLibraryA
-            kernel32 = pymem.process.module_from_name(self.pm.process_handle, "kernel32.dll")
-            load_library = pymem.process.get_proc_address(self.pm.process_handle, "LoadLibraryA")
+            # 3. Get address of LoadLibraryA in target
+            load_library = self.get_proc_address("kernel32.dll", "LoadLibraryA")
+            if not load_library:
+                return False, "Failed to locate LoadLibraryA in target process."
             
             # 4. Start thread to call LoadLibraryA(remote_path)
             self.pm.start_thread(load_library, remote_path)
@@ -130,11 +157,10 @@ class ManualMapInjector:
             for imp in entry.imports:
                 if imp.name:
                     func_name = imp.name.decode('utf-8')
-                    # Correct function name is get_proc_address
-                    func_addr = pymem.process.get_proc_address(self.pm.process_handle, dll_name, func_name)
+                    func_addr = self.get_proc_address(dll_name, func_name)
                 else:
                     # Import by ordinal
-                    func_addr = pymem.process.get_proc_address(self.pm.process_handle, dll_name, imp.ordinal)
+                    func_addr = self.get_proc_address(dll_name, imp.ordinal)
                 
                 if func_addr:
                     # Write the address to the IAT
