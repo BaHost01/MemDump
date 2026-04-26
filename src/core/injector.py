@@ -35,7 +35,7 @@ class ManualMapInjector:
             
             # 3. Get address of LoadLibraryA
             kernel32 = pymem.process.module_from_name(self.pm.process_handle, "kernel32.dll")
-            load_library = self.pm.get_proc_address(kernel32.lpBaseOfDll, "LoadLibraryA")
+            load_library = pymem.process.get_proc_address(self.pm.process_handle, "LoadLibraryA")
             
             # 4. Start thread to call LoadLibraryA(remote_path)
             self.pm.start_thread(load_library, remote_path)
@@ -125,8 +125,8 @@ class ManualMapInjector:
                     if reloc.type == 0: # IMAGE_REL_BASED_ABSOLUTE
                         continue
                     
-                    # Correct way to get the relocation address with pefile
-                    reloc_address = remote_base + base_reloc.struct.VirtualAddress + reloc.base_relocation.Offset
+                    # The absolute RVA is stored in the 'rva' attribute
+                    reloc_address = remote_base + reloc.rva
                     
                     try:
                         if pe.FILE_HEADER.Machine == 0x8664: # x64
