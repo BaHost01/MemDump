@@ -80,9 +80,16 @@ class MemoryManager:
             with open(output_path, 'wb') as f:
                 f.write(module_data)
             
+            import pefile
+            # Parse the dumped data to get entry point
+            pe = pefile.PE(data=module_data)
+            entry_point_offset = pe.OPTIONAL_HEADER.AddressOfEntryPoint
+            
             metadata = {
                 "module_name": module_name,
                 "base_address": hex(module.lpBaseOfDll),
+                "entry_point": hex(module.lpBaseOfDll + entry_point_offset),
+                "entry_point_offset": hex(entry_point_offset),
                 "image_size": hex(module.SizeOfImage),
                 "path": module.filename,
                 "dump_time": str(__import__('datetime').datetime.now())

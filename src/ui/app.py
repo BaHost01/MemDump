@@ -218,7 +218,7 @@ class MemDumpApp(ctk.CTk):
             messagebox.showwarning("Warning", "Please select a module to dump.")
             return
 
-        save_path = filedialog.asksaveasfilename(defaultextension=".bin", initialfile=f"dump_{module_name}")
+        save_path = filedialog.asksaveasfilename(defaultextension=".dll", initialfile=f"dump_{module_name}.dll")
         if not save_path:
             return
 
@@ -234,8 +234,9 @@ class MemDumpApp(ctk.CTk):
                     with open(json_path, 'w') as jf:
                         json.dump(metadata, jf, indent=4)
                     
-                    self.log(f"{msg}. Metadata saved to {os.path.basename(json_path)}", "SUCCESS")
-                    messagebox.showinfo("Success", f"{msg}\nMetadata: {os.path.basename(json_path)}")
+                    self.log(f"Binary: {os.path.basename(save_path)}", "SUCCESS")
+                    self.log(f"Metadata: {os.path.basename(json_path)}", "SUCCESS")
+                    messagebox.showinfo("Success", f"Dump complete!\n\nFiles saved:\n1. {os.path.basename(save_path)}\n2. {os.path.basename(json_path)}")
                 else:
                     self.log(msg, "ERROR")
                     messagebox.showerror("Error", msg)
