@@ -22,8 +22,10 @@ MemDump is a stealthy, Windows-targeted utility designed for **Memory Dumping** 
 ## Features & Stealth
 - **Manual Mapping:** Injects DLLs without `LoadLibrary`, bypassing standard detection.
 - **Header Erasure:** Optional post-injection step to erase PE headers from memory.
+- **Architecture Validation:** (v1.0.1) Checks for x86/x64 mismatch before injection.
 - **Thread Hijacking (WIP):** Concept implemented for stealthy execution.
 - **Dumping:** Extracts module data directly from target process memory.
+- **Revamped Logging:** (v1.0.1) Color-coded logs with timestamps for better debugging.
 
 ## Building and Running
 ### Local Development (Windows)
@@ -48,7 +50,7 @@ pyinstaller build.spec
 The output will be in the `dist/MemDump.exe` directory.
 
 ## Automated Releases
-Pushing a tag matching `v*` (e.g., `v1.0.0`) triggers the GitHub Action to build the Windows executable and attach it to a new GitHub Release.
+Pushing a tag matching `v*` (e.g., `v1.0.1`) triggers the GitHub Action to build the Windows executable (utilizing pip caching for speed) and attach it to a new GitHub Release.
 
 ## Development Conventions
 - **Modular Design:** Keep memory logic (`core`) separate from the user interface (`ui`).

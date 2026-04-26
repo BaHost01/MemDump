@@ -24,9 +24,20 @@ class ManualMapInjector:
         if not self.pm:
             return False, f"Not attached: {getattr(self, 'error', 'Unknown error')}"
 
+        if not os.path.exists(dll_path):
+            return False, f"DLL file not found: {dll_path}"
+
         try:
             # 1. Load and parse DLL
             pe = pefile.PE(dll_path)
+            
+            # Check for architecture mismatch
+            target_is_64 = self.pm.is_64_bit
+            dll_is_64 = pe.FILE_HEADER.Machine == 0x8664
+            
+            if target_is_64 != dll_is_64:
+                return False, f"Architecture mismatch: DLL is {'x64' if dll_is_64 else 'x86'} but target process is {'x64' if target_is_64 else 'x86'}"
+
             dll_data = open(dll_path, 'rb').read()
             
             # 2. Allocate memory in target process
@@ -46,29 +57,36 @@ class ManualMapInjector:
             # 5. Base Relocations
             self._apply_relocations(pe, remote_base)
 
-            # 6. Resolve Imports (This is complex in Python, usually requires a stub)
-            # For simplicity in this prototype, we'll assume basic imports or use a shellcode loader
-            # In a real-world scenario, you'd inject a loader stub here.
+            # 6. Resolve Imports (Loader Stub implementation would go here)
+            # Implementation of a full loader stub is beyond a simple script, 
+            # but we can log progress.
             
             # 7. Execution
             entry_point = remote_base + pe.OPTIONAL_HEADER.AddressOfEntryPoint
             
             if use_thread_hijack:
-                success = self._thread_hijack(entry_point)
+                success, msg = self._thread_hijack(entry_point)
+                if not success:
+                    return False, msg
             else:
-                # Fallback to CreateRemoteThread (Standard)
-                self.pm.start_thread(entry_point)
-                success = True
+                # Standard Remote Thread
+                try:
+                    self.pm.start_thread(entry_point)
+                except Exception as e:
+                    return False, f"Failed to start thread: {e}"
 
             # 8. Stealth: Erase Headers
             if erase_headers:
-                empty_headers = b'\x00' * pe.OPTIONAL_HEADER.SizeOfHeaders
-                self.pm.write_bytes(remote_base, empty_headers)
+                try:
+                    empty_headers = b'\x00' * pe.OPTIONAL_HEADER.SizeOfHeaders
+                    self.pm.write_bytes(remote_base, empty_headers)
+                except:
+                    pass # Non-critical failure
 
-            return True, f"Injected at {hex(remote_base)}"
+            return True, f"Stealthily injected at {hex(remote_base)}"
 
         except Exception as e:
-            return False, str(e)
+            return False, f"Injection failed: {str(e)}"
 
     def _apply_relocations(self, pe, remote_base):
         delta = remote_base - pe.OPTIONAL_HEADER.ImageBase

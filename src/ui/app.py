@@ -94,28 +94,45 @@ class MemDumpApp(ctk.CTk):
 
     # --- Actions ---
 
-    def log(self, message):
+    def log(self, message, level="INFO"):
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%H:%M:%S")
         self.log_text.configure(state="normal")
-        self.log_text.insert("end", f"> {message}\n")
+        color_tag = f"level_{level.lower()}"
+        
+        # Define tags if they don't exist
+        if level == "ERROR":
+            self.log_text.tag_config("level_error", foreground="red")
+        elif level == "SUCCESS":
+            self.log_text.tag_config("level_success", foreground="green")
+        elif level == "WARNING":
+            self.log_text.tag_config("level_warning", foreground="yellow")
+
+        msg_formatted = f"[{timestamp}] [{level}] {message}\n"
+        self.log_text.insert("end", msg_formatted, color_tag)
         self.log_text.see("end")
         self.log_text.configure(state="disabled")
 
     def refresh_processes(self):
         self.log("Refreshing process list...")
-        processes = self.memory_manager.get_processes()
-        proc_strings = [f"{p['name']} ({p['pid']})" for p in processes]
-        self.proc_combo.configure(values=proc_strings)
-        if proc_strings:
-            self.proc_combo.set(proc_strings[0])
-        self.log(f"Found {len(processes)} processes.")
+        try:
+            processes = self.memory_manager.get_processes()
+            proc_strings = [f"{p['name']} ({p['pid']})" for p in processes]
+            self.proc_combo.configure(values=proc_strings)
+            if proc_strings:
+                self.proc_combo.set(proc_strings[0])
+            self.log(f"Found {len(processes)} processes.", "SUCCESS")
+        except Exception as e:
+            self.log(f"Failed to refresh processes: {e}", "ERROR")
 
     def on_process_select(self, value):
         try:
             pid = int(value.split("(")[-1].strip(")"))
             self.selected_process = pid
-            self.log(f"Selected PID: {pid}")
+            self.log(f"Attached to target PID: {pid}", "SUCCESS")
         except:
             self.selected_process = None
+            self.log("Invalid process selection.", "WARNING")
 
     def dump_module(self):
         if not self.selected_process:
@@ -131,16 +148,19 @@ class MemDumpApp(ctk.CTk):
         if not save_path:
             return
 
-        self.log(f"Attempting to dump {module_name}...")
+        self.log(f"Starting dump of {module_name}...")
         
         def _task():
             if self.memory_manager.attach(self.selected_process):
                 success, msg = self.memory_manager.dump_module(module_name, save_path)
-                self.log(msg)
                 if success:
+                    self.log(msg, "SUCCESS")
                     messagebox.showinfo("Success", msg)
+                else:
+                    self.log(msg, "ERROR")
+                    messagebox.showerror("Error", msg)
             else:
-                self.log("Failed to attach to process.")
+                self.log("Failed to attach to process for dumping.", "ERROR")
 
         threading.Thread(target=_task).start()
 
@@ -149,13 +169,14 @@ class MemDumpApp(ctk.CTk):
         if path:
             self.dll_path = path
             self.dll_path_label.configure(text=os.path.basename(path))
+            self.log(f"Selected DLL: {os.path.basename(path)}", "INFO")
 
     def inject_dll(self):
         if not self.selected_process or not self.dll_path:
             messagebox.showwarning("Warning", "Select a process and a DLL.")
             return
 
-        self.log(f"Initiating injection into PID {self.selected_process}...")
+        self.log(f"Initiating stealth injection into PID {self.selected_process}...", "WARNING")
         
         def _task():
             injector = ManualMapInjector(self.selected_process)
@@ -164,11 +185,12 @@ class MemDumpApp(ctk.CTk):
                 erase_headers=self.erase_headers_var.get(),
                 use_thread_hijack=self.hijack_var.get()
             )
-            self.log(msg)
             if success:
+                self.log(msg, "SUCCESS")
                 messagebox.showinfo("Injection Result", msg)
             else:
-                messagebox.showerror("Error", msg)
+                self.log(msg, "ERROR")
+                messagebox.showerror("Injection Error", msg)
 
         threading.Thread(target=_task).start()
 
