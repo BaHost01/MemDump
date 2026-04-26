@@ -130,6 +130,7 @@ class ManualMapInjector:
             for imp in entry.imports:
                 if imp.name:
                     func_name = imp.name.decode('utf-8')
+                    # Correct function name is get_proc_address
                     func_addr = pymem.process.get_proc_address(self.pm.process_handle, dll_name, func_name)
                 else:
                     # Import by ordinal
