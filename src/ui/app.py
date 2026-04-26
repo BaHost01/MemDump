@@ -84,6 +84,13 @@ class MemDumpApp(ctk.CTk):
         self.select_dll_btn = ctk.CTkButton(self.tab_injector, text="Select DLL", command=self.select_dll)
         self.select_dll_btn.pack(pady=10)
 
+        self.method_label = ctk.CTkLabel(self.tab_injector, text="Injection Method:")
+        self.method_label.pack(pady=(10, 0))
+        
+        self.method_var = ctk.StringVar(value="Manual Map")
+        self.method_combo = ctk.CTkComboBox(self.tab_injector, values=["Manual Map", "LoadLibrary"], variable=self.method_var, command=self.toggle_stealth_options)
+        self.method_combo.pack(pady=10)
+
         self.stealth_frame = ctk.CTkFrame(self.tab_injector)
         self.stealth_frame.pack(pady=10)
 
@@ -184,20 +191,31 @@ class MemDumpApp(ctk.CTk):
             self.dll_path_label.configure(text=os.path.basename(path))
             self.log(f"Selected DLL: {os.path.basename(path)}", "INFO")
 
+    def toggle_stealth_options(self, value):
+        state = "normal" if value == "Manual Map" else "disabled"
+        self.erase_headers_cb.configure(state=state)
+        self.hijack_cb.configure(state=state)
+
     def inject_dll(self):
         if not self.selected_process or not self.dll_path:
             messagebox.showwarning("Warning", "Select a process and a DLL.")
             return
 
-        self.log(f"Initiating stealth injection into PID {self.selected_process}...", "WARNING")
+        method = self.method_var.get()
+        self.log(f"Initiating {method} injection into PID {self.selected_process}...", "WARNING")
         
         def _task():
             injector = ManualMapInjector(self.selected_process)
-            success, msg = injector.inject(
-                self.dll_path, 
-                erase_headers=self.erase_headers_var.get(),
-                use_thread_hijack=self.hijack_var.get()
-            )
+            
+            if method == "Manual Map":
+                success, msg = injector.inject(
+                    self.dll_path, 
+                    erase_headers=self.erase_headers_var.get(),
+                    use_thread_hijack=self.hijack_var.get()
+                )
+            else:
+                success, msg = injector.inject_load_library(self.dll_path)
+
             if success:
                 self.log(msg, "SUCCESS")
                 messagebox.showinfo("Injection Result", msg)

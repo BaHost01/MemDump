@@ -20,6 +20,30 @@ class ManualMapInjector:
             self.pm = None
             self.error = str(e)
 
+    def inject_load_library(self, dll_path):
+        """Standard injection using LoadLibraryA."""
+        if not self.pm:
+            return False, "Not attached."
+        
+        try:
+            # 1. Allocate memory for the DLL path string
+            path_bytes = dll_path.encode('ascii') + b'\x00'
+            remote_path = self.pm.allocate(len(path_bytes))
+            
+            # 2. Write the path string
+            self.pm.write_bytes(remote_path, path_bytes, len(path_bytes))
+            
+            # 3. Get address of LoadLibraryA
+            kernel32 = pymem.process.module_from_name(self.pm.process_handle, "kernel32.dll")
+            load_library = self.pm.get_proc_address(kernel32.lpBaseOfDll, "LoadLibraryA")
+            
+            # 4. Start thread to call LoadLibraryA(remote_path)
+            self.pm.start_thread(load_library, remote_path)
+            
+            return True, f"Standard injection successful via LoadLibraryA"
+        except Exception as e:
+            return False, f"LoadLibrary injection failed: {e}"
+
     def inject(self, dll_path, erase_headers=False, use_thread_hijack=False):
         """Perform manual map injection."""
         if not self.pm:
