@@ -46,14 +46,15 @@ class ManualMapInjector:
             remote_base = self.pm.allocate(image_size)
             
             # 3. Write Headers
-            self.pm.write_bytes(remote_base, dll_data[:pe.OPTIONAL_HEADER.SizeOfHeaders])
+            header_size = pe.OPTIONAL_HEADER.SizeOfHeaders
+            self.pm.write_bytes(remote_base, dll_data[:header_size], header_size)
             
             # 4. Write Sections
             for section in pe.sections:
                 section_address = remote_base + section.VirtualAddress
                 section_data = section.get_data()
                 if section_data:
-                    self.pm.write_bytes(section_address, section_data)
+                    self.pm.write_bytes(section_address, section_data, len(section_data))
 
             # 5. Base Relocations
             self._apply_relocations(pe, remote_base)
@@ -79,8 +80,8 @@ class ManualMapInjector:
             # 8. Stealth: Erase Headers
             if erase_headers:
                 try:
-                    empty_headers = b'\x00' * pe.OPTIONAL_HEADER.SizeOfHeaders
-                    self.pm.write_bytes(remote_base, empty_headers)
+                    empty_headers = b'\x00' * header_size
+                    self.pm.write_bytes(remote_base, empty_headers, header_size)
                 except:
                     pass # Non-critical failure
 
