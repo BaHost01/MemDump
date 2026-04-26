@@ -8,7 +8,9 @@ BOOL APIENTRY DllMain(HMODULE hModule,
     switch (ul_reason_for_call)
     {
     case DLL_PROCESS_ATTACH:
-        MessageBoxA(NULL, "MemDump: DLL Attached Successfully!", "Success", MB_OK | MB_ICONINFORMATION);
+        char message[256];
+        wsprintfA(message, "MemDump: DLL Attached Successfully!\nBase Address: 0x%p", hModule);
+        MessageBoxA(NULL, message, "Injection Success", MB_OK | MB_ICONINFORMATION);
         break;
     case DLL_THREAD_ATTACH:
     case DLL_THREAD_DETACH:

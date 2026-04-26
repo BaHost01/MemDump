@@ -11,22 +11,28 @@ class MemoryManager:
     def get_processes(self, filter_system=True):
         """Enumerate running processes with optional system process filtering."""
         processes = []
-        # List of common system process names to hide if filtering is enabled
+        # Expanded list of common system process names
         system_procs = {
             "svchost.exe", "conhost.exe", "wininit.exe", "winlogon.exe", "lsass.exe",
             "services.exe", "smss.exe", "csrss.exe", "registry", "memory compression",
-            "idle", "system", "spoolsv.exe", "searchindexer.exe", "runtimebroker.exe"
+            "idle", "system", "spoolsv.exe", "searchindexer.exe", "runtimebroker.exe",
+            "shellexperiencehost.exe", "searchhost.exe", "startmenuexperiencehost.exe",
+            "taskhostw.exe", "fontdrvhost.exe", "dwm.exe", "ctfmon.exe", "sihost.exe",
+            "smartscreen.exe", "dllhost.exe", "audiodg.exe", "wudfhost.exe"
         }
 
         for process in pymem.process.list_processes():
-            name = process.szExeFile.decode('utf-8', errors='ignore')
-            if filter_system and name.lower() in system_procs:
+            try:
+                name = process.szExeFile.decode('utf-8', errors='ignore')
+                if filter_system and name.lower() in system_procs:
+                    continue
+                
+                processes.append({
+                    'name': name,
+                    'pid': process.th32ProcessID
+                })
+            except:
                 continue
-            
-            processes.append({
-                'name': name,
-                'pid': process.th32ProcessID
-            })
         return sorted(processes, key=lambda x: x['name'].lower())
 
     def attach(self, process_id):
@@ -37,7 +43,6 @@ class MemoryManager:
             self.process_id = process_id
             return True
         except Exception as e:
-            print(f"Error attaching to process {process_id}: {e}")
             return False
 
     def get_modules(self):
@@ -50,8 +55,10 @@ class MemoryManager:
             for module in self.pm.list_modules():
                 modules.append({
                     'name': module.name,
-                    'base': hex(module.lpBaseOfDll),
-                    'size': hex(module.SizeOfImage)
+                    'base': module.lpBaseOfDll,
+                    'base_hex': hex(module.lpBaseOfDll),
+                    'size': hex(module.SizeOfImage),
+                    'path': module.filename
                 })
         except Exception as e:
             print(f"Error listing modules: {e}")
@@ -61,21 +68,29 @@ class MemoryManager:
     def dump_module(self, module_name, output_path):
         """Dump a specific module from the attached process."""
         if not self.pm:
-            return False, "Not attached to any process."
+            return False, "Not attached to any process.", None
 
         try:
             module = pymem.process.module_from_name(self.pm.process_handle, module_name)
             if not module:
-                return False, f"Module {module_name} not found."
+                return False, f"Module {module_name} not found.", None
 
             module_data = self.pm.read_bytes(module.lpBaseOfDll, module.SizeOfImage)
             
             with open(output_path, 'wb') as f:
                 f.write(module_data)
             
-            return True, f"Successfully dumped {module_name} to {output_path}"
+            metadata = {
+                "module_name": module_name,
+                "base_address": hex(module.lpBaseOfDll),
+                "image_size": hex(module.SizeOfImage),
+                "path": module.filename,
+                "dump_time": str(__import__('datetime').datetime.now())
+            }
+            
+            return True, f"Successfully dumped {module_name}", metadata
         except Exception as e:
-            return False, str(e)
+            return False, str(e), None
 
     def dump_region(self, base_address, size, output_path):
         """Dump a specific memory region."""

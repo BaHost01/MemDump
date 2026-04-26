@@ -200,7 +200,7 @@ class MemDumpApp(ctk.CTk):
         if module:
             self.info_box.configure(state="normal")
             self.info_box.delete("0.0", "end")
-            info = f"Module Info:\nBase Address: {module['base']}\nImage Size: {module['size']}"
+            info = f"Module Info:\nBase Address: {module['base_hex']}\nImage Size: {module['size']}\nPath: {module['path']}"
             self.info_box.insert("0.0", info)
             self.info_box.configure(state="disabled")
 
@@ -221,11 +221,17 @@ class MemDumpApp(ctk.CTk):
         self.log(f"Starting dump of {module_name}...")
         
         def _task():
+            import json
             if self.memory_manager.attach(self.selected_process):
-                success, msg = self.memory_manager.dump_module(module_name, save_path)
+                success, msg, metadata = self.memory_manager.dump_module(module_name, save_path)
                 if success:
-                    self.log(msg, "SUCCESS")
-                    messagebox.showinfo("Success", msg)
+                    # Save metadata to JSON
+                    json_path = os.path.splitext(save_path)[0] + ".json"
+                    with open(json_path, 'w') as jf:
+                        json.dump(metadata, jf, indent=4)
+                    
+                    self.log(f"{msg}. Metadata saved to {os.path.basename(json_path)}", "SUCCESS")
+                    messagebox.showinfo("Success", f"{msg}\nMetadata: {os.path.basename(json_path)}")
                 else:
                     self.log(msg, "ERROR")
                     messagebox.showerror("Error", msg)
