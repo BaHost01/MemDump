@@ -2,12 +2,13 @@ import ctypes
 import pefile
 import pymem
 import pymem.ressources.structure
-from pymem.constants import *
+import pymem.ressources.kernel32
+import os
 
-# Windows Constants
+# Define required constants if not using the full import
+PAGE_EXECUTE_READWRITE = 0x40
 MEM_COMMIT = 0x00001000
 MEM_RESERVE = 0x00002000
-PAGE_EXECUTE_READWRITE = 0x40
 
 class ManualMapInjector:
     def __init__(self, process_id):
