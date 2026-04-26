@@ -22,7 +22,7 @@ jobs:
       run: cmake --build build_dll --config Release
 
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: test-dll-x64
         path: build_dll/Release/test_dll.dll
