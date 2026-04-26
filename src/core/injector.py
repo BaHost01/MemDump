@@ -101,11 +101,16 @@ class ManualMapInjector:
                     if reloc.type == 0: # IMAGE_REL_BASED_ABSOLUTE
                         continue
                     
-                    reloc_address = remote_base + base_reloc.struct.VirtualAddress + reloc.struct.Offset
-                    # Read current value, add delta, write back
+                    # Correct way to get the relocation address with pefile
+                    reloc_address = remote_base + base_reloc.struct.VirtualAddress + reloc.base_relocation.Offset
+                    
                     try:
-                        current_val = self.pm.read_longlong(reloc_address) if pe.FILE_HEADER.Machine == 0x8664 else self.pm.read_int(reloc_address)
-                        self.pm.write_longlong(reloc_address, current_val + delta) if pe.FILE_HEADER.Machine == 0x8664 else self.pm.write_int(reloc_address, current_val + delta)
+                        if pe.FILE_HEADER.Machine == 0x8664: # x64
+                            current_val = self.pm.read_longlong(reloc_address)
+                            self.pm.write_longlong(reloc_address, current_val + delta)
+                        else: # x86
+                            current_val = self.pm.read_int(reloc_address)
+                            self.pm.write_int(reloc_address, current_val + delta)
                     except:
                         continue
 
