@@ -36,9 +36,17 @@ class MemDumpApp(ctk.CTk):
 
         self.proc_combo = ctk.CTkComboBox(self.top_frame, values=[], command=self.on_process_select)
         self.proc_combo.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+        self.proc_combo.bind("<KeyRelease>", self.filter_process_list)
+
+        self.filter_system_var = ctk.BooleanVar(value=True)
+        self.filter_cb = ctk.CTkCheckBox(self.top_frame, text="Hide System", variable=self.filter_system_var, command=self.refresh_processes, width=100)
+        self.filter_cb.grid(row=0, column=2, padx=10, pady=10)
 
         self.refresh_btn = ctk.CTkButton(self.top_frame, text="Refresh", command=self.refresh_processes, width=100)
-        self.refresh_btn.grid(row=0, column=2, padx=10, pady=10)
+        self.refresh_btn.grid(row=0, column=3, padx=10, pady=10)
+
+        # Cache for all loaded processes
+        self.all_processes = []
 
         # --- Middle: TabView ---
         self.tabview = ctk.CTkTabview(self)
@@ -116,14 +124,19 @@ class MemDumpApp(ctk.CTk):
     def refresh_processes(self):
         self.log("Refreshing process list...")
         try:
-            processes = self.memory_manager.get_processes()
-            proc_strings = [f"{p['name']} ({p['pid']})" for p in processes]
+            self.all_processes = self.memory_manager.get_processes(filter_system=self.filter_system_var.get())
+            proc_strings = [f"{p['name']} ({p['pid']})" for p in self.all_processes]
             self.proc_combo.configure(values=proc_strings)
             if proc_strings:
                 self.proc_combo.set(proc_strings[0])
-            self.log(f"Found {len(processes)} processes.", "SUCCESS")
+            self.log(f"Found {len(self.all_processes)} processes.", "SUCCESS")
         except Exception as e:
             self.log(f"Failed to refresh processes: {e}", "ERROR")
+
+    def filter_process_list(self, event):
+        search_query = self.proc_combo.get().lower()
+        filtered = [f"{p['name']} ({p['pid']})" for p in self.all_processes if search_query in p['name'].lower()]
+        self.proc_combo.configure(values=filtered)
 
     def on_process_select(self, value):
         try:

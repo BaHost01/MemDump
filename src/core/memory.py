@@ -8,12 +8,23 @@ class MemoryManager:
         self.process_name = None
         self.process_id = None
 
-    def get_processes(self):
-        """Enumerate running processes."""
+    def get_processes(self, filter_system=True):
+        """Enumerate running processes with optional system process filtering."""
         processes = []
+        # List of common system process names to hide if filtering is enabled
+        system_procs = {
+            "svchost.exe", "conhost.exe", "wininit.exe", "winlogon.exe", "lsass.exe",
+            "services.exe", "smss.exe", "csrss.exe", "registry", "memory compression",
+            "idle", "system", "spoolsv.exe", "searchindexer.exe", "runtimebroker.exe"
+        }
+
         for process in pymem.process.list_processes():
+            name = process.szExeFile.decode('utf-8', errors='ignore')
+            if filter_system and name.lower() in system_procs:
+                continue
+            
             processes.append({
-                'name': process.szExeFile.decode('utf-8', errors='ignore'),
+                'name': name,
                 'pid': process.th32ProcessID
             })
         return sorted(processes, key=lambda x: x['name'].lower())
